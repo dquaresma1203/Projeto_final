@@ -1,0 +1,65 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <time.h>
+
+int shared_buffer = -1;
+
+pthread_mutex_t buffer_mutex; 
+pthread_cond_t buffer_cheio;  
+pthread_cond_t buffer_vazio;  
+
+void* produtor_thread(void* arg) {
+    int item_produzido = 0;
+    while (1) {
+        
+        pthread_mutex_lock(&buffer_mutex);
+        while (shared_buffer != -1) {
+            printf("\n[PRODUTOR] Buffer cheio. Esperando (wait) o Consumidor...\n");
+            pthread_cond_wait(&buffer_vazio, &buffer_mutex);
+        }
+
+        item_produzido++;
+        shared_buffer = item_produzido;
+        printf("[PRODUTOR] Produziu item: %d\n", shared_buffer);
+        pthread_cond_signal(&buffer_cheio);
+        pthread_mutex_unlock(&buffer_mutex);
+        usleep(rand() % 200000 + 100000); // 100ms a 300ms
+    }
+    return NULL;
+}
+
+void* consumidor_thread(void* arg) {
+    while (1) {
+        pthread_mutex_lock(&buffer_mutex);
+        while (shared_buffer == -1) {
+            printf("\n[CONSUMIDOR] Buffer vazio. Esperando (wait) o Produtor...\n");
+            pthread_cond_wait(&buffer_cheio, &buffer_mutex);
+        }
+        int item_consumido = shared_buffer;
+        printf("[CONSUMIDOR] Consumiu item: %d. Processando...\n", item_consumido);
+        shared_buffer = -1;
+        pthread_cond_signal(&buffer_vazio);
+        pthread_mutex_unlock(&buffer_mutex);
+        usleep(rand() % 400000 + 200000); 
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t tid_produtor, tid_consumidor;
+    printf("--- Modelo Produtor-Consumidor Simples (Threads POSIX) ---\n");
+    pthread_mutex_init(&buffer_mutex, NULL);
+    pthread_cond_init(&buffer_cheio, NULL);
+    pthread_cond_init(&buffer_vazio, NULL);
+    pthread_create(&tid_produtor, NULL, produtor_thread, NULL);
+    pthread_create(&tid_consumidor, NULL, consumidor_thread, NULL);
+    pthread_join(tid_produtor, NULL);
+    pthread_join(tid_consumidor, NULL);
+    pthread_mutex_destroy(&buffer_mutex);
+    pthread_cond_destroy(&buffer_cheio);
+    pthread_cond_destroy(&buffer_vazio);
+
+    return 0;
+}
